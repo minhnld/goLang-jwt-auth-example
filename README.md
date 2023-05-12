@@ -69,3 +69,8 @@ A CSRF secret string will be provided to each client and will be identical the C
 1. Signout is a restricted route, so the client must provide an auth token, refresh token and csrf secret. They are checked as described, above.
 2. The refresh token JTI is removed from the whitelisted list of valid JTI's in our db
 3. The client's auth and refresh tokens are nullified (their values are set to "")
+
+### Upload File 
+1. POST data to the /upload handler, which should write the received file data to a temporary file in /tmp.
+2. Before accepting any data, you should check authorization (token generate via feature 1) is valid and the content type of the uploaded file is an image. If the submission is bad, please return an error. Images larger than 8 megabytes should also be rejected.
+3. Write the image metadata (content type, size, etc) to a database of your choice, including all relevant HTTP information.
