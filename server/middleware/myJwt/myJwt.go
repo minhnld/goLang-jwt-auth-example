@@ -7,14 +7,14 @@
 package myJwt
 
 import (
+	"../../../db"
+	"../../../db/models"
 	"crypto/rsa"
-	"io/ioutil"
-	"time"
 	"errors"
+	"github.com/dgrijalva/jwt-go"
+	"io/ioutil"
 	"log"
-	"github.com/adam-hanna/goLang-jwt-auth-example/db/models"
-	"github.com/adam-hanna/goLang-jwt-auth-example/db"
-	jwt "github.com/dgrijalva/jwt-go"
+	"time"
 )
 
 // location of the files used for signing and verification
@@ -64,10 +64,8 @@ func CreateNewTokens(uuid string, role string) (authTokenString, refreshTokenStr
 		return
 	}
 
-
 	// generate the refresh token
 	refreshTokenString, err = createRefreshTokenString(uuid, role, csrfSecret)
-	
 
 	// generate the auth token
 	authTokenString, err = createAuthTokenString(uuid, role, csrfSecret)
@@ -92,7 +90,7 @@ func CheckAndRefreshTokens(oldAuthTokenString string, oldRefreshTokenString stri
 	authToken, err := jwt.ParseWithClaims(oldAuthTokenString, &models.TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return verifyKey, nil
 	})
-	authTokenClaims, ok := authToken.Claims.(*models.TokenClaims) 
+	authTokenClaims, ok := authToken.Claims.(*models.TokenClaims)
 	if !ok {
 		return
 	}
@@ -101,7 +99,6 @@ func CheckAndRefreshTokens(oldAuthTokenString string, oldRefreshTokenString stri
 		err = errors.New("Unauthorized")
 		return
 	}
-
 
 	// next, check the auth token in a stateless manner
 	if authToken.Valid {
@@ -152,10 +149,10 @@ func CheckAndRefreshTokens(oldAuthTokenString string, oldRefreshTokenString stri
 }
 
 func createAuthTokenString(uuid string, role string, csrfSecret string) (authTokenString string, err error) {
-	authTokenExp 	:= time.Now().Add(models.AuthTokenValidTime).Unix()
-	authClaims 		:= models.TokenClaims{
+	authTokenExp := time.Now().Add(models.AuthTokenValidTime).Unix()
+	authClaims := models.TokenClaims{
 		jwt.StandardClaims{
-			Subject: uuid,
+			Subject:   uuid,
 			ExpiresAt: authTokenExp,
 		},
 		role,
@@ -179,8 +176,8 @@ func createRefreshTokenString(uuid string, role string, csrfString string) (refr
 
 	refreshClaims := models.TokenClaims{
 		jwt.StandardClaims{
-			Id: refreshJti, // jti
-			Subject: uuid,
+			Id:        refreshJti, // jti
+			Subject:   uuid,
 			ExpiresAt: refreshTokenExp,
 		},
 		role,
@@ -197,11 +194,11 @@ func createRefreshTokenString(uuid string, role string, csrfString string) (refr
 
 func updateRefreshTokenExp(oldRefreshTokenString string) (newRefreshTokenString string, err error) {
 	refreshToken, err := jwt.ParseWithClaims(oldRefreshTokenString, &models.TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
-        return verifyKey, nil
-    })
+		return verifyKey, nil
+	})
 
-    oldRefreshTokenClaims, ok := refreshToken.Claims.(*models.TokenClaims)
-    if !ok {
+	oldRefreshTokenClaims, ok := refreshToken.Claims.(*models.TokenClaims)
+	if !ok {
 		return
 	}
 
@@ -209,8 +206,8 @@ func updateRefreshTokenExp(oldRefreshTokenString string) (newRefreshTokenString 
 
 	refreshClaims := models.TokenClaims{
 		jwt.StandardClaims{
-			Id: oldRefreshTokenClaims.StandardClaims.Id, // jti
-			Subject: oldRefreshTokenClaims.StandardClaims.Subject,
+			Id:        oldRefreshTokenClaims.StandardClaims.Id, // jti
+			Subject:   oldRefreshTokenClaims.StandardClaims.Subject,
 			ExpiresAt: refreshTokenExp,
 		},
 		oldRefreshTokenClaims.Role,
@@ -259,7 +256,7 @@ func updateAuthTokenString(refreshTokenString string, oldAuthTokenString string)
 			}
 
 			newAuthTokenString, err = createAuthTokenString(oldAuthTokenClaims.StandardClaims.Subject, oldAuthTokenClaims.Role, csrfSecret)
-			
+
 			return
 		} else {
 			log.Println("Refresh token has expired!")
@@ -290,7 +287,7 @@ func RevokeRefreshToken(refreshTokenString string) error {
 	if !ok {
 		return errors.New("Could not read refresh token claims")
 	}
-	
+
 	db.DeleteRefreshToken(refreshTokenClaims.StandardClaims.Id)
 
 	return nil
@@ -298,18 +295,18 @@ func RevokeRefreshToken(refreshTokenString string) error {
 
 func updateRefreshTokenCsrf(oldRefreshTokenString string, newCsrfString string) (newRefreshTokenString string, err error) {
 	refreshToken, err := jwt.ParseWithClaims(oldRefreshTokenString, &models.TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
-        return verifyKey, nil
-    })
+		return verifyKey, nil
+	})
 
-    oldRefreshTokenClaims, ok := refreshToken.Claims.(*models.TokenClaims)
-    if !ok {
+	oldRefreshTokenClaims, ok := refreshToken.Claims.(*models.TokenClaims)
+	if !ok {
 		return
 	}
 
 	refreshClaims := models.TokenClaims{
 		jwt.StandardClaims{
-			Id: oldRefreshTokenClaims.StandardClaims.Id, // jti
-			Subject: oldRefreshTokenClaims.StandardClaims.Subject,
+			Id:        oldRefreshTokenClaims.StandardClaims.Id, // jti
+			Subject:   oldRefreshTokenClaims.StandardClaims.Subject,
 			ExpiresAt: oldRefreshTokenClaims.StandardClaims.ExpiresAt,
 		},
 		oldRefreshTokenClaims.Role,
@@ -328,10 +325,10 @@ func GrabUUID(authTokenString string) (string, error) {
 	authToken, _ := jwt.ParseWithClaims(authTokenString, &models.TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return "", errors.New("Error fetching claims")
 	})
-	authTokenClaims, ok := authToken.Claims.(*models.TokenClaims) 
+	authTokenClaims, ok := authToken.Claims.(*models.TokenClaims)
 	if !ok {
 		return "", errors.New("Error fetching claims")
 	}
-	
+
 	return authTokenClaims.StandardClaims.Subject, nil
 }

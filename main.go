@@ -1,10 +1,10 @@
 package main
 
 import (
+	"./db"
+	"./server"
+	"./server/middleware/myJwt"
 	"log"
-	"github.com/adam-hanna/goLang-jwt-auth-example/db"
-	"github.com/adam-hanna/goLang-jwt-auth-example/server"
-	"github.com/adam-hanna/goLang-jwt-auth-example/server/middleware/myJwt"
 )
 
 var host = "localhost"
@@ -16,7 +16,7 @@ func main() {
 
 	// init the JWTs
 	jwtErr := myJwt.InitJWT()
-	if jwtErr!= nil {
+	if jwtErr != nil {
 		log.Println("Error initializing the JWT's!")
 		log.Fatal(jwtErr)
 	}

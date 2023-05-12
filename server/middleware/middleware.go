@@ -1,14 +1,17 @@
 package middleware
 
 import (
+	"../../db"
+	"../../server/middleware/myJwt"
+	"../../server/templates"
 	"github.com/justinas/alice"
+	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
-	"time"
+	"os"
 	"strings"
-	"github.com/adam-hanna/goLang-jwt-auth-example/server/middleware/myJwt"
-	"github.com/adam-hanna/goLang-jwt-auth-example/server/templates"
-	"github.com/adam-hanna/goLang-jwt-auth-example/db"
+	"time"
 )
 
 func NewHandler() http.Handler {
@@ -38,7 +41,7 @@ func authHandler(next http.Handler) http.Handler {
 		// include list of restricted paths, comma sep
 		// I'm including logout here, bc I don't want a baddie forcing my users to logout
 		switch r.URL.Path {
-		case "/restricted", "/logout", "/deleteUser":
+		case "/restricted", "/logout", "/deleteUser", "/upload":
 			log.Println("In auth restricted section")
 
 			// read cookies
@@ -102,7 +105,7 @@ func authHandler(next http.Handler) http.Handler {
 			// And tokens have been refreshed if need-be
 			setAuthAndRefreshCookies(&w, authTokenString, refreshTokenString)
 			w.Header().Set("X-CSRF-Token", csrfSecret)
-			
+
 		default:
 			// no jwt check necessary
 		}
@@ -118,12 +121,12 @@ func logicHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/restricted":
 		csrfSecret := grabCsrfFromReq(r)
-		templates.RenderTemplate(w, "restricted", &templates.RestrictedPage{ csrfSecret, "Stoofs!" })
+		templates.RenderTemplate(w, "restricted", &templates.RestrictedPage{csrfSecret, "Stoofs!"})
 
 	case "/login":
 		switch r.Method {
 		case "GET":
-			templates.RenderTemplate(w, "login", &templates.LoginPage{ false, "" })
+			templates.RenderTemplate(w, "login", &templates.LoginPage{false, ""})
 
 		case "POST":
 			r.ParseForm()
@@ -156,8 +159,8 @@ func logicHandler(w http.ResponseWriter, r *http.Request) {
 	case "/register":
 		switch r.Method {
 		case "GET":
-			templates.RenderTemplate(w, "register", &templates.RegisterPage{ false, "" })
-		
+			templates.RenderTemplate(w, "register", &templates.RegisterPage{false, ""})
+
 		case "POST":
 			r.ParseForm()
 			log.Println(r.Form)
@@ -229,6 +232,61 @@ func logicHandler(w http.ResponseWriter, r *http.Request) {
 		// use 302 to force browser to do GET request
 		http.Redirect(w, r, "/register", 302)
 
+	case "/upload":
+		switch r.Method {
+
+		case "POST":
+			log.Println("Upload image file to server")
+
+			// Get file from form data
+			file, _, err := r.FormFile("file")
+			if err != nil {
+				http.Error(w, "Failed to get file from form data", http.StatusBadRequest)
+				return
+			}
+
+			defer file.Close()
+
+			//Check content type is image
+			isImageFile, err := isImage(file)
+			if err != nil || !isImageFile {
+				http.Error(w, "Error: Not an image", http.StatusBadRequest)
+				return
+			}
+
+			// Check file size is less than 8MB
+			r.Body = http.MaxBytesReader(w, r.Body, 8*1024*1024)
+			if err := r.ParseMultipartForm(8 * 1024 * 1024); err != nil {
+				http.Error(w, "File too large", http.StatusBadRequest)
+				return
+			}
+
+			// Get file metadata
+
+			// Write file to temporary file
+			newFileTemplate, err := os.Create("tmp/upload.png")
+			if err != nil {
+				http.Error(w, "Failed to create new file", http.StatusInternalServerError)
+				return
+			}
+			defer newFileTemplate.Close()
+			if _, err := io.Copy(newFileTemplate, file); err != nil {
+				http.Error(w, "Failed to write file to temporary file", http.StatusInternalServerError)
+				return
+			}
+
+			// Insert file metadata into database
+			//_, err = db.Exec("INSERT INTO files (content_type, size) VALUES ($1, $2)", contentType, fileSize)
+			//if err != nil {
+			//	http.Error(w, "Failed to insert file metadata into database", http.StatusInternalServerError)
+			//	return
+			//}
+
+			w.WriteHeader(http.StatusCreated)
+
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
 	default:
 		w.WriteHeader(http.StatusOK)
 	}
@@ -236,18 +294,18 @@ func logicHandler(w http.ResponseWriter, r *http.Request) {
 
 func nullifyTokenCookies(w *http.ResponseWriter, r *http.Request) {
 	authCookie := http.Cookie{
-		Name: "AuthToken",
-		Value: "",
-		Expires: time.Now().Add(-1000 * time.Hour),
+		Name:     "AuthToken",
+		Value:    "",
+		Expires:  time.Now().Add(-1000 * time.Hour),
 		HttpOnly: true,
 	}
 
 	http.SetCookie(*w, &authCookie)
 
 	refreshCookie := http.Cookie{
-		Name: "RefreshToken",
-		Value: "",
-		Expires: time.Now().Add(-1000 * time.Hour),
+		Name:     "RefreshToken",
+		Value:    "",
+		Expires:  time.Now().Add(-1000 * time.Hour),
 		HttpOnly: true,
 	}
 
@@ -268,16 +326,16 @@ func nullifyTokenCookies(w *http.ResponseWriter, r *http.Request) {
 
 func setAuthAndRefreshCookies(w *http.ResponseWriter, authTokenString string, refreshTokenString string) {
 	authCookie := http.Cookie{
-		Name: "AuthToken",
-		Value: authTokenString,
+		Name:     "AuthToken",
+		Value:    authTokenString,
 		HttpOnly: true,
 	}
 
 	http.SetCookie(*w, &authCookie)
 
 	refreshCookie := http.Cookie{
-		Name: "RefreshToken",
-		Value: refreshTokenString,
+		Name:     "RefreshToken",
+		Value:    refreshTokenString,
 		HttpOnly: true,
 	}
 
@@ -292,4 +350,27 @@ func grabCsrfFromReq(r *http.Request) string {
 	} else {
 		return r.Header.Get("X-CSRF-Token")
 	}
+}
+
+// Check if a file is an image and return its size in bytes
+func isImage(file multipart.File) (bool, error) {
+	defer file.Seek(0, 0) // Reset file pointer to beginning
+
+	// Read the first 512 bytes to detect the file's content type
+	buffer := make([]byte, 512)
+	if _, err := file.Read(buffer); err != nil {
+		return false, err
+	}
+
+	contentType := http.DetectContentType(buffer)
+	if !strings.HasPrefix(contentType, "image/") {
+		return false, nil
+	}
+
+	// Get the file size in bytes
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }

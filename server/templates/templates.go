@@ -1,27 +1,36 @@
 package templates
 
 import (
+	"html/template"
 	"log"
 	"net/http"
-	"html/template"
 )
 
 type LoginPage struct {
 	BAlertUser bool
-	AlertMsg string
+	AlertMsg   string
 }
 
 type RegisterPage struct {
 	BAlertUser bool
-	AlertMsg string
+	AlertMsg   string
 }
 
 type RestrictedPage struct {
-	CsrfSecret string
+	CsrfSecret    string
 	SecretMessage string
 }
 
-var templates = template.Must(template.ParseFiles("./server/templates/templateFiles/login.tmpl", "./server/templates/templateFiles/register.tmpl", "./server/templates/templateFiles/restricted.tmpl"))
+type UploadDashBoard struct {
+	CsrfSecret string
+	MyMessage  string
+}
+
+var templates = template.Must(template.ParseFiles(
+	"./server/templates/templateFiles/login.tmpl",
+	"./server/templates/templateFiles/register.tmpl",
+	"./server/templates/templateFiles/restricted.tmpl",
+))
 
 func RenderTemplate(w http.ResponseWriter, tmpl string, p interface{}) {
 	err := templates.ExecuteTemplate(w, tmpl+".tmpl", p)

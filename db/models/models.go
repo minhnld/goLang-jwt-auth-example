@@ -1,9 +1,9 @@
 package models
 
 import (
+	"../../randomstrings"
+	"github.com/dgrijalva/jwt-go"
 	"time"
-	"github.com/adam-hanna/goLang-jwt-auth-example/randomstrings"
-	jwt "github.com/dgrijalva/jwt-go"
 )
 
 type User struct {
